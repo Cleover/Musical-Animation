@@ -1,0 +1,27 @@
+{
+  "name": "musical-animation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cleover/Musical-Animation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Cleover/Musical-Animation/issues"
+  },
+  "homepage": "https://github.com/Cleover/Musical-Animation#readme",
+  "dependencies": {
+    "canvas": "^2.9.0",
+    "jimp": "^0.16.1",
+    "music-metadata": "^7.12.2",
+    "node-vibrant": "^3.2.1-alpha.1",
+    "stackblur-canvas": "^2.5.0"
+  }
+}
