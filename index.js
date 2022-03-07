@@ -1,5 +1,4 @@
 const mm = require('music-metadata');
-const fs = require('fs');
 const {
     createCanvas,
     loadImage,
@@ -7,6 +6,15 @@ const {
 } = require('canvas')
 const StackBlur = require('stackblur-canvas');
 const Vibrant = require('node-vibrant')
+const videoshow = require('videoshow')
+const cliProgress = require('cli-progress');
+const colors = require('ansi-colors');
+const fs = require('fs');
+const inquirer = require('inquirer');
+const path = require("path");
+
+const canvas = createCanvas(1920, 1080)
+const ctx = canvas.getContext('2d')
 
 function componentToHex(c) {
     var hex = c.toString(16);
@@ -17,20 +25,69 @@ function rgbToHex(r, g, b) {
     return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
 }
 
-letsGo()
+getSettings()
 
-async function letsGo() {
+async function getSettings() {
+
+    let songs = []
+
+    let inputPath = "./input"
+
+    if (!fs.existsSync(inputPath)) fs.mkdirSync(inputPath);
+
+    fs.readdir(inputPath, (err, files) => {
+        files.forEach(file => {
+            // Get the file extension
+            let type = file.split(".")[1]
+
+            // Make sure its a music file
+            if (type == "flac") songs.push(file)
+            else if (type == "mp3") songs.push(file)
+            else if (type == "m4a") songs.push(file)
+
+            // File does not match requirements
+            else songs.push({
+                name: file,
+                disabled: 'Not a valid type (mp3/m4a/flac)',
+            }, )
+        });
+
+        if (songs.length == 0) return console.log("You must add songs to the input directory, files must be mp3/m4a/flac")
+
+        inquirer
+            .prompt([{
+                    type: 'list',
+                    name: 'file',
+                    message: 'Which file would you like to use?',
+                    choices: songs,
+                },
+                {
+                    type: 'input',
+                    name: 'fps',
+                    message: "What would you like the video fps to be?\n(Will increase file size and time to render)\n:",
+                    validate(value) {
+                        if (value >= 1 && value <= 60) return true;
+                        return 'Please enter a valid number between 1 and 60\n:';
+                    },
+                }
+            ])
+            .then((answers) => {
+                createBaseImage(answers)
+            });
+    });
+}
+
+async function createBaseImage(settings) {
     try {
-        const metadata = await mm.parseFile('./input/song.mp3');
+
+        const metadata = await mm.parseFile(`./input/${settings.file}`);
         let tags = metadata
+
         let [duration, track, title, artists, album, genre, year, copyright, picture] = [tags.format.duration, tags.common.track, tags.common.title, tags.common.artists, tags.common.album, tags.common.genre, tags.common.year, tags.common.copyright, tags.common.picture[0]]
+
 
         img = `data:${picture.format};base64,${picture.data.toString('base64')}`;
         // fs.writeFileSync("test.txt", img)
-
-        const canvas = createCanvas(1920, 1080)
-
-        const ctx = canvas.getContext('2d')
 
         // Draw cat with lime helmet
         loadImage(img).then(async (image) => {
@@ -69,18 +126,20 @@ async function letsGo() {
 
                 // UNUSED: track, genre, copyright, year, duration
 
+                ctx.shadowBlur = 60;
+
                 // Song Artists
-                ctx.fillText(artists.join(","), canvas.width / 1.5, canvas.height / 3.3)
+                ctx.fillText(artists.join(","), canvas.width / 1.5, canvas.height / 3.2)
 
                 // Song Album
-                ctx.fillText(album, canvas.width / 1.5, canvas.height / 2.3)
+                ctx.fillText(album, canvas.width / 1.5, canvas.height / 2.2)
 
 
                 // Bold
                 ctx.font = 'bold 30px sans-serif'
 
                 // Song Title
-                ctx.fillText(title, canvas.width / 1.5, canvas.height / 2.8)
+                ctx.fillText(title, canvas.width / 1.5, canvas.height / 2.7)
 
                 ctx.shadowBlur = 0;
 
@@ -89,23 +148,21 @@ async function letsGo() {
                 ctx.fillStyle = hex2;
 
                 ctx.beginPath();
-                ctx.rect((canvas.width / 1.5) - (650/2), canvas.height / 1.9, 650, 40);
+                ctx.rect((canvas.width / 1.5) - (650 / 2), canvas.height / 1.8, 650, 40);
                 ctx.stroke();
                 ctx.fill()
 
                 ctx.fillStyle = hex;
 
-                let time = 240
+                // Create the temp folder if it does not exist
+                var dir = './tmp';
 
-                ctx.beginPath();
-                await ctx.rect((canvas.width / 1.5) - (650/2), canvas.height / 1.9, (time / duration) * 650, 40);
-                ctx.stroke();
-                ctx.fill()
+                if (fs.existsSync(dir)) fs.rmSync(dir, {
+                    recursive: true,
+                    force: true
+                });
 
-                //ctx.fillText(`${copyright} (${year})`, canvas.width / 1.5, canvas.height / 2.4)
-
-                const buffer = canvas.toBuffer("image/png");
-                fs.writeFileSync("./image.png", buffer);
+                await renderer(duration, dir, settings)
             })
         })
 
@@ -113,3 +170,93 @@ async function letsGo() {
         // console.error(error.message);
     }
 };
+
+async function renderer(duration, tempDir, settings) {
+
+    fs.mkdirSync(tempDir)
+
+    let frames = Math.round(duration * settings.fps)
+
+    const framesCompleted = new cliProgress.SingleBar({
+        format: colors.cyan('{bar}') + '| {percentage}% | ETA: {eta}s | Frames Rendered: {value}/{total}',
+        barCompleteChar: '\u2588',
+        barIncompleteChar: '\u2591',
+        hideCursor: true,
+        clearOnComplete: true,
+    }, cliProgress.Presets.shades_classic);
+
+    framesCompleted.start(frames, 0);
+
+    let images = []
+
+    for (let frame = 0; frame < frames; frame++) {
+
+        // Create all frames needed
+        ctx.beginPath();
+        ctx.rect((canvas.width / 1.5) - (650 / 2), canvas.height / 1.8, (frame / frames) * 650, 40);
+        ctx.stroke();
+        ctx.fill()
+
+        // Save the image
+        const buffer = canvas.toBuffer("image/png");
+
+        let name = frame.toString()
+
+        if (name.length == 1) name = "00" + name
+        else if (name.length == 2) name = "0" + name
+
+        images.push(`${tempDir}/${name}.png`)
+
+        framesCompleted.update(frame);
+
+        fs.writeFileSync(`${tempDir}/${name}.png`, buffer);
+    }
+
+    framesCompleted.stop();
+    
+    createVideo(images, settings, tempDir, (duration / frames))
+}
+
+async function createVideo(images, settings, tempDir, time) {
+
+    console.log("Rendering video from frames, this may take some time.")
+
+    var finalVideoPath = './output/'
+
+    if (!fs.existsSync(finalVideoPath)) fs.mkdirSync(finalVideoPath);
+    
+    // console.log(images)
+    // console.log(images.length)
+    // console.log(settings.fps)
+    // return console.log(time)
+
+    // setup videoshow options
+    var videoOptions = {
+        fps: settings.fps,
+        loop: time,
+        transition: false,
+        videoBitrate: 2048,
+        videoCodec: 'libx264',
+        size: '1920x1080',
+        audioBitrate: '320k',
+        format: 'mp4',
+        pixelFormat: 'yuv420p'
+    }
+
+    videoshow(images, videoOptions)
+
+        .audio(`./input/${settings.file}`)
+        .save(finalVideoPath + "output.mp4")
+
+        // .on('start', function (command) {
+        //     console.log('ffmpeg process started, this may take some time.')
+        // })
+        .on('error', function (err, stdout, stderr) {
+            console.error('Error:', err)
+            console.error('ffmpeg stderr:', stderr)
+        })
+        .on('end', function (output) {
+            console.error('Video created in:', output)
+        })
+
+}

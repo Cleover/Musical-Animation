@@ -18,10 +18,14 @@
   },
   "homepage": "https://github.com/Cleover/Musical-Animation#readme",
   "dependencies": {
+    "ansi-colors": "^4.1.1",
     "canvas": "^2.9.0",
-    "jimp": "^0.16.1",
+    "cli-progress": "^3.10.0",
+    "inquirer": "^8.2.0",
     "music-metadata": "^7.12.2",
     "node-vibrant": "^3.2.1-alpha.1",
-    "stackblur-canvas": "^2.5.0"
+    "prompt-choices": "^5.0.0",
+    "stackblur-canvas": "^2.5.0",
+    "videoshow": "^0.1.12"
   }
 }
